@@ -1,0 +1,24 @@
+# Requirements for Qwen3_VL_RAG_fewshot_project.ipynb
+# Install with:  pip install -r requirements.txt
+#
+# IMPORTANT: torch is pulled from PyTorch's CUDA wheel index below.
+# The default here is CUDA 12.1 (cu121). If `nvidia-smi` shows a different
+# CUDA version, change cu121 to match (e.g. cu118, cu124), or remove the
+# line and install torch separately per https://pytorch.org/get-started/locally/
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch
+
+# Qwen3-VL classes are not in a stable transformers release yet -> install from source
+git+https://github.com/huggingface/transformers
+accelerate
+
+# pipeline deps
+pillow
+datasets
+pandas
+numpy
+
+# needed only to execute the notebook headless / interactively
+jupyter
+nbconvert
+ipykernel
