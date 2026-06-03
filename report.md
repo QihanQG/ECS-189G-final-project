@@ -4,6 +4,12 @@ This project tests how well a small vision-language model can classify astronomi
 
 We use the [ESA Hubble Deep Space Images](https://huggingface.co/datasets/Supermaxman/esa-hubble) dataset from Hugging Face and take the first 266 images from it. Each one comes with metadata describing what is in it.
 
+## Problem Statement
+
+Vision-language models like Qwen3-VL are trained for general image understanding, not for the AVM taxonomy that astronomers use to label images. The task is hard for a model like this. The labels are fine-grained and hierarchical, and they depend on both the object type and the cosmic scale, which is often not visible in a single image.
+
+We test whether a small VLM can produce AVM codes for Hubble images without any fine-tuning, and whether examples in the prompt help. We compare three prompting methods: zero-shot, fixed few-shot, and few-shot with examples retrieved by visual similarity. The dataset metadata is the ground truth.
+
 ## Dataset, AVM Labels, and Ground Truth
 
 The dataset has many different astronomical objects, and we are not cosmology experts, so it is hard to judge by eye whether Qwen got an image right. Instead of deciding the labels ourselves, we use the dataset metadata as the ground truth.
