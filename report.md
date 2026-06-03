@@ -160,19 +160,40 @@ We also compare each few-shot run against the control row by row.
 
 Retrieval few-shot helped more rows and hurt fewer rows than static few-shot. This supports the main metric results.
 
+### Error Severity
+
+For every predicted code we measured where it first diverges from the true code in the AVM tree. A code splits into scale, object, subtype group, and leaf, and the match depth is how many of those levels a prediction shares with the truth before it goes wrong. Any predicted code that is not a real AVM code is counted as invented.
+
+| Severity | Control | Static | Retrieval |
+|---|---:|---:|---:|
+| Invented | 0.0% | 0.0% | 0.0% |
+| Scale wrong | 54.0% | 33.3% | 27.1% |
+| Object wrong | 14.2% | 9.3% | 9.2% |
+| Subtype group wrong | 13.5% | 14.0% | 17.5% |
+| Leaf wrong | 7.2% | 22.7% | 14.9% |
+| Exact | 11.2% | 20.6% | 31.4% |
+
+![Error severity by run](results/severity_by_run.png)
+
 ## Analysis
 
 The control result is low. Qwen got 19 out of 256 images exactly right. With only the taxonomy and the instruction, the model does poorly on AVM classification.
  
-Static few-shot improved every metric. Exact matches went from 19 to 30, macro F1 from 0.1436 to 0.1884, and hierarchical F1 from 0.2947 to 0.4390. The fixed example pairs helped the model follow the AVM output format and label style.
+Static few-shot improved every metric. **Exact matches** went from 19 to 30, **Macro F1** from 0.1436 to 0.1884, and **Hierarchical F1** from 0.2947 to 0.4390. The fixed example pairs helped the model follow the AVM output format and label style.
  
-Retrieval few-shot scored highest. Exact matches rose to 50, macro F1 to 0.3014, and hierarchical F1 to 0.5068. Visually similar examples were more useful than the same fixed examples.
+Retrieval few-shot scored highest. **Exact matches** rose to 50, **Macro F1** to 0.3014, and **Hierarchical F1** to 0.5068. Visually similar examples were more useful than the same fixed examples.
  
 Over-prediction dropped under both few-shot settings. The control over-predicted on 69 rows. Static and retrieval each over-predicted on 40. The examples reduced how often the model output too many codes.
  
-Exact match and hierarchical F1 differ across all three runs. Exact match gives no credit when the broad object type is right but the subtype is wrong. Hierarchical F1 is higher because the predictions often match the upper levels of the tree even when the final code is wrong.
+**Exact match** and **Hierarchical F1** differ across all three runs. Exact match gives no credit when the broad object type is right but the subtype is wrong. Hierarchical F1 is higher because the predictions often match the upper levels of the tree even when the final code is wrong.
  
-Qwen can classify these images to a degree but struggles with the fine-grained AVM labels. Both few-shot settings beat the control, and retrieval beat static.
+No run invented codes. Every code the model produced is a real AVM code, so the failure is not fabrication. The model usually picks a wrong real code, not a made-up one.
+
+The largest error type is scale error, not fine subtype error. In the control run, $54.0\%$ of predicted codes had the wrong scale, meaning the model confused broad regimes such as Milky Way, Local Universe, or Early Universe. This makes sense because the image can show the object shape, but the cosmic distance is often not obvious visually.
+
+Few-shot prompting reduced these scale errors. Static few-shot lowered scale errors to $33.3\%$, and retrieval few-shot lowered them to $27.1\%$. The exact-code share also increased from $11.2\%$ in control to $20.6\%$ in static few-shot and $31.4\%$ in retrieval few-shot. This suggests that examples help guide the model toward the right AVM region, especially when the visual evidence alone is not enough.
+
+Overall, Qwen can classify these images to a degree, but it struggles with fine-grained AVM labeling and especially with choosing the correct scale. Both few-shot settings beat the control, and retrieval beat static.
 
 ## Limitations
 
@@ -186,8 +207,8 @@ Qwen can classify these images to a degree but struggles with the fine-grained A
 
 ## Conclusion
 
-We tested Qwen3-VL-8B on AVM classification for ESA/Hubble images. The zero-shot control did poorly at a 7.42% exact match rate. Static few-shot raised it to 11.72%. Retrieval few-shot did the best at 19.53%.
+We tested Qwen3-VL-8B on AVM classification for ESA/Hubble images. The zero-shot control reached an **exact match** rate of $7.42\%$. Static few-shot raised it to $11.72\%$, and retrieval few-shot did the best at $19.53\%$.
 
-The F1 scores follow the same pattern. Macro F1 went 0.1436, 0.1884, 0.3014. Hierarchical F1 went 0.2947, 0.4390, 0.5068.
+The **F1** scores follow the same pattern. **Macro F1** went 0.1436, 0.1884, 0.3014. **Hierarchical F1** went 0.2947, 0.4390, 0.5068.
 
 So Qwen3-VL-8B can make useful AVM predictions, but it is not reliable enough for exact fine-grained astronomical classification on its own. Few-shot prompting helps, and retrieval-based few-shot helps the most.
