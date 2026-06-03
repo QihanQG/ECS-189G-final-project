@@ -30,11 +30,12 @@ C       = Local Universe
 Some images have more than one object type, so their ground truth contains multiple AVM codes. We store the converted labels in a true-code file with one row per image:
 
 ```text
-0: B.3.6.4.1, B.4.1.3
-1: C.5.1.7
+0: B.3.6.4.1, B.4.1.3  (two objects)
+1: C.5.1.7             (single object)
 2: C.4.1.2
 3: D.6.2.2
 ```
+
 
 The row number matches the image index from the streamed dataset. Row `0` is the first image, row `1` is the second, and so on.
 
@@ -46,12 +47,9 @@ So the evaluation setup becomes:
 Input: Hubble image
 Model output: AVM code or codes
 Ground truth: AVM code or codes converted from the dataset metadata
-Evaluation: compare predicted codes against ground-truth codes
+Evaluation: compare predicted AVM codes against ground-truth AVM codes
 ```
-
-This means we are not checking whether the prediction sounds reasonable. We check whether the model output matches the AVM code from the metadata.
-
-The notebook streams the dataset from Hugging Face instead of downloading the full dataset at once, and reads the first 266 rows. For each row, it keeps the image, the metadata without the image column, the object name used for retrieval filtering, and the ground-truth AVM code. This gives one consistent image list and label list across all experiments.
+To keep the image and label lists consistent across all experiments, the notebook **streams** the dataset from Hugging Face and reads the first 266 rows. For each row, it stores the image, metadata, object name for retrieval filtering, and ground-truth AVM code. 
 
 ## Prompting Setup
 
@@ -67,21 +65,9 @@ identify the type(s) of object(s) or phenomenon(a) depicted and express each
 as an AVM 1.1 code.
 ```
 
-The model looks at each image and outputs only the code or codes. If an image has multiple object types, it outputs multiple codes separated by commas.
+The model looks at each image and outputs only the code or codes. If an image has multiple object types, it outputs multiple codes separated by commas. The output format is the same as the ground-truth file.
 
-The output format is:
-
-```text
-Single object:
-B.4.1.3
-
-Multiple objects:
-C.5.1.1, C.5.1.2
-```
-
-It is not supposed to add explanations or extra text, which keeps the output easy to parse.
-
-Even with this instruction, the model sometimes adds extra text anyway. So after Qwen generates its text, the notebook uses a regex to pull out only the strings that look like AVM codes and drops everything else. The kept codes go into a prediction file in the same `index: codes` format as the true-code file, so the metrics cell can compare the two directly.
+Since Qwen can still add extra text, the notebook uses a regex to keep only strings that look like AVM codes and drops everything else. The kept codes go into a prediction file in the same `index: codes` format as the true-code file, so the metrics cell can compare the two directly.
 
 ## Experiments
 
@@ -93,7 +79,7 @@ We compare three settings.
 
 3. Retrieval few-shot. Qwen gets 10 image-label examples picked for each test image using CLIP image similarity. So each image gets visually similar examples instead of the same fixed ones. The retrieval also skips any example that has the same object name as the test image, not just the test image itself. This stops it from grabbing another shot of the same Hubble object and copying its label.
 
-The model, dataset rows, parsing, and metrics are the same across all three. We did this so the comparison measures the prompting method and not some other difference. Decoding is greedy, so the runs are deterministic and the differences between them are not just sampling noise.
+All three runs use the same model, evaluation rows, parser, metrics, and greedy decoding. This isolates the prompting method as the main variable.
 
 We used 266 images total. The 10 static few-shot examples are left out of evaluation, so the final evaluation is on 256 images.
 
@@ -113,13 +99,7 @@ We use three metrics.
 
 ### Exact Set Match
 
-This checks whether the predicted set of codes matches the ground-truth set exactly. If the ground truth is:
-
-```text
-C.5.1.1, C.5.1.2
-```
-
-then the prediction has to be exactly those two. Missing one or adding an extra counts as wrong. This is the strictest one.
+This checks whether the predicted set of codes matches the ground-truth set exactly. 
 
 ### Standard Precision, Recall, and F1
 
@@ -148,7 +128,7 @@ expand(C.4.1.3) = {C, C.4, C.4.1, C.4.1.3}
 overlap         = {C, C.4, C.4.1}   
 ```
 
-Standard F1 here is 0, because `C.4.1.3` is not `C.4.1.2`, so the raw code sets do not overlap. Hierarchical F1 is 3/4 = 0.75, since the two agree on three of the four prefix levels. This is why the hierarchical scores are higher than exact match.
+Standard F1 here is 0, because `C.4.1.3` is not `C.4.1.2`, so the raw code sets do not overlap. Hierarchical F1 is 3/4 = 0.75, since the two codes match three of the four prefix levels. 
 
 ## Results
 
@@ -171,7 +151,7 @@ The retrieval few-shot run has the best exact match rate, macro F1, and hierarch
 
 ### Helped and Hurt Rows
 
-The notebook also checks which rows improved or got worse compared with the control run. This is useful for qualitative analysis, but it is not the main metric.
+We also compare each few-shot run against the control row by row.
 
 | Comparison | Better Than Control | Worse Than Control |
 |---|---:|---:|
@@ -182,29 +162,27 @@ Retrieval few-shot helped more rows and hurt fewer rows than static few-shot. Th
 
 ## Analysis
 
-The control result is low. Qwen got 19 out of 256 images exactly right. So AVM classification is hard for the model when it only has the taxonomy and the instruction.
-
-Static few-shot helped. Exact matches went from 19 to 30, macro F1 went from 0.1436 to 0.1884, and hierarchical F1 went from 0.2947 to 0.4390. Giving Qwen example image-label pairs seems to help it understand the task.
-
-Retrieval few-shot did the best. Exact matches went up to 50, macro F1 to 0.3014, and hierarchical F1 to 0.5068. This suggests that visually similar examples are more useful than the same fixed examples every time.
-
-The over-prediction count is interesting too. In the control setting Qwen over-predicted on 69 rows. In both few-shot settings that dropped to 40. So the few-shot examples seem to make it more controlled and less likely to output too many codes.
-
-Exact match and hierarchical F1 also differ by a lot. Exact match gives no credit if the model gets the broad object type right but the subtype wrong. Hierarchical F1 is higher because Qwen often lands close in the tree even when the final code is off.
-
-Overall Qwen has some ability to classify these images, but it struggles with the fine-grained AVM labels. The two few-shot settings both beat the control, and retrieval did better than static.
+The control result is low. Qwen got 19 out of 256 images exactly right. With only the taxonomy and the instruction, the model does poorly on AVM classification.
+ 
+Static few-shot improved every metric. Exact matches went from 19 to 30, macro F1 from 0.1436 to 0.1884, and hierarchical F1 from 0.2947 to 0.4390. The fixed example pairs helped the model follow the AVM output format and label style.
+ 
+Retrieval few-shot scored highest. Exact matches rose to 50, macro F1 to 0.3014, and hierarchical F1 to 0.5068. Visually similar examples were more useful than the same fixed examples.
+ 
+Over-prediction dropped under both few-shot settings. The control over-predicted on 69 rows. Static and retrieval each over-predicted on 40. The examples reduced how often the model output too many codes.
+ 
+Exact match and hierarchical F1 differ across all three runs. Exact match gives no credit when the broad object type is right but the subtype is wrong. Hierarchical F1 is higher because the predictions often match the upper levels of the tree even when the final code is wrong.
+ 
+Qwen can classify these images to a degree but struggles with the fine-grained AVM labels. Both few-shot settings beat the control, and retrieval beat static.
 
 ## Limitations
 
-A few things to keep in mind.
+- The task is fine-grained. A lot of AVM labels look similar, especially galaxy and nebula subtypes. Even when the model knows it is a galaxy, it can pick the wrong galaxy subtype.
 
-The task is fine-grained. A lot of AVM labels look similar, especially galaxy and nebula subtypes. Even when the model knows it is a galaxy, it can pick the wrong galaxy subtype.
+- Many images have multiple labels. The model might get one object right and miss another, or add an extra label that looks visually possible but is not in the metadata.
 
-Many images have multiple labels. The model might get one object right and miss another, or add an extra label that looks visually possible but is not in the metadata.
+- The ground truth comes from metadata, which can include scientific context that is not obvious from the image. This makes the task harder for a vision-language model.
 
-The ground truth comes from metadata, which can include scientific context that is not obvious from the image. This makes the task harder for a vision-language model.
-
-The retrieval method depends on CLIP similarity. If CLIP pulls examples that look similar but are actually a different type, the prompt can still push Qwen toward the wrong code.
+- The retrieval method depends on CLIP similarity. If CLIP pulls examples that look similar but are actually a different type, the prompt can still push Qwen toward the wrong code.
 
 ## Conclusion
 
